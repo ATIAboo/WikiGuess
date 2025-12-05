@@ -1,0 +1,5 @@
+{
+  "name": "WikiGuess AI",
+  "description": "A Redactle-style encyclopedia guessing game where you reveal text character by character. Powered by Gemini to generate infinite unique puzzles.",
+  "requestFramePermissions": []
+}
