@@ -230,8 +230,10 @@ function App() {
     } catch (e: any) {
       console.error(e);
       let msg = "生成失败";
-      if (e.message?.includes("quota")) {
+      // Check for quota or token errors and guide the user
+      if (e.message?.includes("quota") || e.message?.includes("Hugging Face Token")) {
           msg = "配额用尽，请在设置中配置 HuggingFace Token";
+          setShowSettings(true); // Automatically open settings
       }
       setFeedback({ text: msg, type: 'error' });
     } finally {

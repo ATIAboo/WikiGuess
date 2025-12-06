@@ -1,3 +1,4 @@
+
 import { GeneratedImage, AspectRatioOption, ModelOption } from "../types";
 
 const ZIMAGE_BASE_API_URL = process.env.ZIMAGE_API_URL || "https://luca115-z-image-turbo.hf.space";
@@ -65,29 +66,30 @@ const getAuthHeaders = (): Record<string, string> => {
 
 function extractCompleteEventData(sseStream: string): any | null {
   const lines = sseStream.split('\n');
-  let isCompleteEvent = false;
+  let currentEvent = null;
 
   for (const line of lines) {
     if (line.startsWith('event:')) {
-      if (line.substring(6).trim() === 'complete') {
-        isCompleteEvent = true;
-      } else if (line.substring(6).trim() === 'error') {
-        isCompleteEvent = false;
-        throw new Error("Your today's quota has been used up. You can set up Hugging Face Token to get more quota.")
-      } else {
-        isCompleteEvent = false; // Reset if it's another event type
-      }
-    } else if (line.startsWith('data:') && isCompleteEvent) {
-      const jsonData = line.substring(5).trim();
-      try {
-        return JSON.parse(jsonData);
-      } catch (e) {
-        console.error("Error parsing JSON data:", e);
-        return null;
+      currentEvent = line.substring(6).trim();
+    } else if (line.startsWith('data:')) {
+      const dataStr = line.substring(5).trim();
+      
+      if (currentEvent === 'complete') {
+        try {
+          return JSON.parse(dataStr);
+        } catch (e) {
+          console.error("Error parsing JSON data:", e);
+          return null;
+        }
+      } else if (currentEvent === 'error') {
+         // Use server message if available, otherwise default to quota warning
+         // Clean up quotes if the server sends "Error string"
+         const serverMsg = dataStr.replace(/^['"]|['"]$/g, '');
+         throw new Error(serverMsg || "Your today's quota has been used up. You can set up Hugging Face Token to get more quota.");
       }
     }
   }
-  return null; // No complete event with data found
+  return null;
 }
 
 const generateZImage = async (
