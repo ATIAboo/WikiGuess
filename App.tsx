@@ -46,7 +46,7 @@ function App() {
 
   // Settings State - Updated defaults for DeepSeek (SiliconFlow)
   const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem("wikiguess_custom_base_url") || "https://api.siliconflow.cn/v1");
-  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem("wikiguess_custom_api_key") || "sk-imkmvexzzdmxcypakexskbzaqqjmzybxfqebsbvccsupvhpo");
+  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem("wikiguess_custom_api_key") || "");
   // Default to DeepSeek-V3
   const [customModelName, setCustomModelName] = useState(localStorage.getItem("wikiguess_custom_model_name") || "deepseek-ai/DeepSeek-V3");
   const [hfToken, setHfToken] = useState(localStorage.getItem("huggingFaceToken") || "");

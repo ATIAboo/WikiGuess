@@ -9,8 +9,8 @@ const getBaseUrl = () => {
 
 const getApiKey = () => {
   const key = localStorage.getItem("wikiguess_custom_api_key");
-  // Default to the provided key if not set
-  return key || "sk-imkmvexzzdmxcypakexskbzaqqjmzybxfqebsbvccsupvhpo";
+  // Default to empty to prevent leakage. User must set this in Settings.
+  return key || "";
 };
 
 const getModelName = () => {
@@ -37,7 +37,7 @@ export const generateAiPuzzle = async (): Promise<Article> => {
 
 要求：
 1. 语言：简体中文。
-2. 主题：选择一个广为人知的概念（历史、科学、文化、日常物品、成语、名胜等）。
+2. 主题：选择一个广为人知的概念（地理、历史、科学、文化、日常物品、成语、名胜等）。
 3. 必须是纯 JSON 字符串，不能有其他废话。`;
 
   try {
