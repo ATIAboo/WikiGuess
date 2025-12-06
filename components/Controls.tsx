@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Sparkles, Eye, Send, AlertCircle, AlertTriangle, Info, Trophy, Share2, Shuffle } from 'lucide-react';
+import { Sparkles, Eye, Send, AlertCircle, AlertTriangle, Info, Shuffle } from 'lucide-react';
 import { GameStatus } from '../types';
 import { Feedback } from '../App';
 
@@ -9,8 +9,6 @@ interface ControlsProps {
   onNewGame: () => void;
   onRandomGame: () => void;
   onGiveUp: () => void;
-  onShowLeaderboard: () => void;
-  onShare: () => void;
   guessCount: number;
   status: GameStatus;
   isLoading: boolean;
@@ -22,8 +20,6 @@ const Controls: React.FC<ControlsProps> = ({
   onNewGame, 
   onRandomGame,
   onGiveUp, 
-  onShowLeaderboard,
-  onShare,
   guessCount, 
   status,
   isLoading,
@@ -40,18 +36,16 @@ const Controls: React.FC<ControlsProps> = ({
     chars.forEach(c => onGuess(c));
     
     setInputValue('');
-    // Keep focus for fast typing
     inputRef.current?.focus();
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-gray-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
-      <div className="max-w-3xl mx-auto space-y-4">
+    <div className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
         
         {/* Status Message */}
         <div className="h-8 flex justify-center items-center text-sm font-medium transition-all">
              {feedback ? (
-                <span className={`flex items-center gap-2 px-4 py-1.5 rounded-full border shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300 ${
+                <span className={`flex items-center gap-2 px-4 py-1.5 rounded-full border shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-300 ${
                     feedback.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' :
                     feedback.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' :
                     feedback.type === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
@@ -72,7 +66,7 @@ const Controls: React.FC<ControlsProps> = ({
         </div>
 
         {/* Input Area */}
-        <form onSubmit={handleSubmit} className="flex gap-2 relative">
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
@@ -81,84 +75,65 @@ const Controls: React.FC<ControlsProps> = ({
             disabled={status !== GameStatus.PLAYING || isLoading}
             placeholder={status === GameStatus.PLAYING ? "输入一个字 (例如: 水)" : "游戏结束"}
             className="flex-1 px-4 py-3 rounded-xl border border-gray-300 bg-gray-50 shadow-inner focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-lg transition-all disabled:opacity-60"
-            autoFocus
+            autoComplete="off"
           />
           <button
             type="submit"
             disabled={!inputValue.trim() || status !== GameStatus.PLAYING}
-            className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold shadow-lg shadow-gray-200 hover:bg-gray-800 hover:shadow-xl disabled:opacity-50 disabled:shadow-none active:scale-95 transition-all flex items-center gap-2"
+            className="px-5 py-2 bg-gray-900 text-white rounded-xl font-bold shadow-md hover:bg-gray-800 disabled:opacity-50 disabled:shadow-none active:scale-95 transition-all flex items-center justify-center min-w-[60px]"
           >
-            <Send size={18} />
-            <span className="hidden sm:inline">猜一猜</span>
+            <Send size={20} />
           </button>
         </form>
 
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center pt-1 px-1">
-            <div className="flex items-center gap-3">
-                 <button 
-                    onClick={onShowLeaderboard}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors relative group"
-                    title="排行榜"
-                >
-                    <Trophy size={20} />
-                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        排行榜
-                    </span>
-                </button>
-                <button 
-                    onClick={onShare}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors relative group"
-                    title="分享题目"
-                >
-                    <Share2 size={20} />
-                    <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        分享题目
-                    </span>
-                </button>
-                <div className="text-gray-500 text-sm font-medium border-l border-gray-200 pl-3 ml-1">
-                    猜测: <span className="font-bold text-gray-900 text-lg ml-1">{guessCount}</span>
+        <div className="h-px bg-gray-100 w-full" />
+
+        {/* Control Buttons Grid */}
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
+            
+            {/* Stats */}
+            <div className="flex items-center justify-center sm:justify-start p-2 bg-gray-50 rounded-xl">
+                 <div className="flex items-center gap-1.5 text-gray-900 px-2">
+                    <span className="text-xs text-gray-500">已猜测</span>
+                    <span className="font-bold text-lg leading-none">{guessCount}</span>
+                    <span className="text-xs text-gray-500">次</span>
                 </div>
             </div>
 
-            <div className="flex gap-2">
+            {/* Game Actions */}
+            <div className="flex items-center justify-end gap-2 flex-1">
                  <button 
                     onClick={onGiveUp}
                     disabled={status !== GameStatus.PLAYING}
-                    className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                    className="p-3 text-gray-500 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors"
                     title="看答案"
                 >
                     <Eye size={20} />
                 </button>
 
-                <div className="h-8 w-px bg-gray-200 mx-1"></div>
-                
                 <button 
                     onClick={onRandomGame}
                     disabled={isLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-100 transition-all disabled:opacity-70 active:scale-95"
-                    title="近5个月随机题目"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-3 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-all disabled:opacity-70 active:scale-95"
                 >
                     <Shuffle size={16} />
-                    <span className="hidden sm:inline">随机题</span>
+                    <span>随机题</span>
                 </button>
 
                 <button 
                     onClick={onNewGame}
                     disabled={isLoading}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md shadow-blue-100 transition-all disabled:opacity-70 active:scale-95"
-                    title="AI生成新题目"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-100 transition-all disabled:opacity-70 active:scale-95"
                 >
                     {isLoading ? (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                         <Sparkles size={16} />
                     )}
-                    <span className="hidden sm:inline">AI 出题</span>
+                    <span>AI出题</span>
                 </button>
             </div>
         </div>
-      </div>
     </div>
   );
 };

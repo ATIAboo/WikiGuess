@@ -7,7 +7,7 @@ import { encodePuzzle, decodePuzzle, getStoredUsername, saveScore, getScores } f
 import ArticleRenderer from './components/ArticleRenderer';
 import Controls from './components/Controls';
 import Leaderboard from './components/Leaderboard';
-import { BookOpen, AlertCircle, User, Calendar, Settings, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { BookOpen, AlertCircle, User, Calendar, Settings, Image as ImageIcon, Loader2, Share2, Trophy } from 'lucide-react';
 
 const FALLBACK_PUZZLE: Article = {
   title: "大熊猫",
@@ -295,14 +295,21 @@ function App() {
                 <span className="text-blue-600">Wiki</span>Guess 猜百科
             </h1>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-2 text-sm">
+             <button
+                onClick={handleShare}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                title="分享"
+             >
+                <Share2 size={20} />
+             </button>
              <button 
                 onClick={() => setShowLeaderboard(true)}
-                className="flex items-center gap-2 text-gray-600 hover:bg-gray-100 px-3 py-1.5 rounded-full transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:bg-gray-100 pl-2 pr-3 py-1.5 rounded-full transition-colors"
                 title="排行榜"
              >
-                <User size={18} />
-                <span className="font-medium max-w-[80px] truncate">{username}</span>
+                <Trophy size={18} className="text-yellow-500" />
+                <span className="font-medium max-w-[80px] truncate hidden sm:inline">{username}</span>
              </button>
              <button
                 onClick={() => setShowSettings(true)}
@@ -316,9 +323,70 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 md:py-10 pb-40">
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 md:py-10">
         
-        {/* Image Generation Section */}
+        {/* Inline Controls (Input + Actions) - Moved to top */}
+        <div className="mb-6">
+            <Controls 
+                onGuess={handleGuess}
+                onNewGame={handleNewGame}
+                onRandomGame={handleRandomDateGame}
+                onGiveUp={handleGiveUp}
+                guessCount={guessCount}
+                status={status}
+                isLoading={isLoading}
+                feedback={feedback}
+            />
+        </div>
+
+        {/* Incorrect Guesses Section */}
+        {wrongGuesses.length > 0 && (
+          <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-red-50">
+             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <AlertCircle className="text-red-500" size={16}/>
+                错误猜测 ({wrongGuesses.length})
+             </h3>
+             <div className="flex flex-wrap gap-2">
+                {wrongGuesses.map((char, idx) => (
+                   <span key={idx} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold shadow-sm">
+                      {char}
+                   </span>
+                ))}
+             </div>
+          </div>
+        )}
+
+        {/* Puzzle Article */}
+        {article && (
+            <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-100 min-h-[30vh] transition-all mb-8 relative overflow-hidden">
+            {/* Date Badge if likely daily puzzle */}
+            {article.content.length > 300 && !isLoading && (
+               <div className="absolute top-0 right-0 p-4 opacity-50 pointer-events-none">
+                  <Calendar className="text-gray-300" size={48} />
+               </div>
+            )}
+            
+            <ArticleRenderer 
+                text={article.title} 
+                guessedChars={guessedChars} 
+                status={status}
+                isTitle={true}
+            />
+            
+            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-8" />
+            
+            <div className="font-serif">
+                <ArticleRenderer 
+                    text={article.content} 
+                    guessedChars={guessedChars} 
+                    status={status}
+                    isTitle={false}
+                />
+            </div>
+            </div>
+        )}
+
+        {/* Image Generation Section - Moved to bottom */}
         {article && (
           <div className="mb-8 flex flex-col items-center">
              {generatedImageUrl ? (
@@ -384,66 +452,7 @@ function App() {
           </div>
         )}
 
-        {article && (
-            <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-100 min-h-[30vh] transition-all mb-8 relative overflow-hidden">
-            {/* Date Badge if likely daily puzzle */}
-            {article.content.length > 300 && !isLoading && (
-               <div className="absolute top-0 right-0 p-4 opacity-50 pointer-events-none">
-                  <Calendar className="text-gray-300" size={48} />
-               </div>
-            )}
-            
-            <ArticleRenderer 
-                text={article.title} 
-                guessedChars={guessedChars} 
-                status={status}
-                isTitle={true}
-            />
-            
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-8" />
-            
-            <div className="font-serif">
-                <ArticleRenderer 
-                    text={article.content} 
-                    guessedChars={guessedChars} 
-                    status={status}
-                    isTitle={false}
-                />
-            </div>
-            </div>
-        )}
-
-        {/* Incorrect Guesses Section */}
-        {wrongGuesses.length > 0 && (
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-red-50">
-             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <AlertCircle className="text-red-500" size={16}/>
-                错误猜测 ({wrongGuesses.length})
-             </h3>
-             <div className="flex flex-wrap gap-2">
-                {wrongGuesses.map((char, idx) => (
-                   <span key={idx} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold shadow-sm">
-                      {char}
-                   </span>
-                ))}
-             </div>
-          </div>
-        )}
       </main>
-
-      {/* Controls */}
-      <Controls 
-        onGuess={handleGuess}
-        onNewGame={handleNewGame}
-        onRandomGame={handleRandomDateGame}
-        onGiveUp={handleGiveUp}
-        onShowLeaderboard={() => setShowLeaderboard(true)}
-        onShare={handleShare}
-        guessCount={guessCount}
-        status={status}
-        isLoading={isLoading}
-        feedback={feedback}
-      />
 
       {/* Leaderboard Modal */}
       <Leaderboard 
