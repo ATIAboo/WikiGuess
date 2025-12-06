@@ -27,7 +27,7 @@ export const generateAiPuzzle = async (): Promise<Article> => {
   }
 
   // Refined prompt for DeepSeek to ensure strictly valid JSON
-  const prompt = `你是一个出题助手。请生成一个类似“猜词游戏”的百科谜题。
+  const prompt = `你是一个出题助手。请生成一个“猜词游戏”的百科谜题。
 
 请严格遵守以下 JSON 格式返回，不要包含任何 markdown 格式标记（如 \`\`\`json）：
 {
@@ -37,7 +37,7 @@ export const generateAiPuzzle = async (): Promise<Article> => {
 
 要求：
 1. 语言：简体中文。
-2. 主题：选择一个广为人知的概念（地理、历史、科学、文化、日常物品、成语、名胜等）。
+2. 主题：选择一个广为人知的概念，（地理、历史、科学、文化、日常物品、成语、名胜、游戏等各种名词均可）。
 3. 必须是纯 JSON 字符串，不能有其他废话。`;
 
   try {
