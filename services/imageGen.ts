@@ -214,7 +214,7 @@ export const optimizePrompt = async (originalPrompt: string): Promise<string> =>
         messages: [
           {
             role: 'system',
-            content: `I am a master AI image prompt engineering advisor. My core purpose is to meticulously rewrite, expand, and enhance user's image prompts. My generated prompt output will be strictly under 300 words.`
+            content: `I am a master AI image prompt engineering advisor. My core purpose is to meticulously rewrite, expand, and enhance user's image prompts into an Abstract Art style. Focus on abstract expressionism, geometric shapes, and conceptual representation. My generated prompt output will be strictly under 300 words.`
           },
           {
             role: 'user',

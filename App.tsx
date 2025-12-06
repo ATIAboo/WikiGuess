@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Article, GameStatus, isSymbol, ScoreRecord, AspectRatioOption, ModelOption } from './types';
 import { generateAiPuzzle, fetchDailyPuzzle } from './services/api';
@@ -44,6 +45,7 @@ function App() {
   // Settings State
   const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem("wikiguess_custom_base_url") || "https://api.openai.com/v1");
   const [customApiKey, setCustomApiKey] = useState(localStorage.getItem("wikiguess_custom_api_key") || "");
+  const [customModelName, setCustomModelName] = useState(localStorage.getItem("wikiguess_custom_model_name") || "gpt-4o-mini");
   const [hfToken, setHfToken] = useState(localStorage.getItem("huggingFaceToken") || "");
 
   // Initialize Game Logic
@@ -188,13 +190,40 @@ function App() {
     }
   };
 
+  const handleRandomDateGame = async () => {
+    setIsLoading(true);
+    setFeedback({ text: "正在抽取历史题目...", type: 'neutral' });
+    
+    try {
+        const today = new Date();
+        // Generate a random number of days to go back (0 to 150 days ~ 5 months)
+        const daysBack = Math.floor(Math.random() * 150);
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() - daysBack);
+
+        const yyyy = targetDate.getFullYear();
+        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(targetDate.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}${mm}${dd}`;
+
+        const puzzle = await fetchDailyPuzzle(dateStr);
+        resetGame(puzzle);
+        setFeedback({ text: `已加载 ${yyyy}年${mm}月${dd}日 的题目`, type: 'success' });
+    } catch (e) {
+        console.error("Failed to load random puzzle", e);
+        setFeedback({ text: "加载历史题目失败，请重试", type: 'error' });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const handleGenerateImage = async () => {
     if (!article) return;
     setIsGeneratingImage(true);
     setFeedback({ text: "AI 正在绘制线索...", type: 'info' });
     try {
-      // Use just the title for clearer images usually, or include a bit of context
-      const prompt = `Artistic illustration of ${article.title}. ${article.content.substring(0, 50)}... High quality, detailed.`;
+      // Enforce Abstract Art Style
+      const prompt = `Abstract art style, conceptual interpretation of ${article.title}. ${article.content.substring(0, 50)}... Abstract expressionism, geometric shapes, vibrant colors, surrealism, non-realistic, artistic masterpiece.`;
       const result = await generateImage(imageModel, prompt, aspectRatio);
       setGeneratedImageUrl(result.url);
       setFeedback({ text: "图片生成成功！", type: 'success' });
@@ -233,6 +262,7 @@ function App() {
   const saveSettings = () => {
     localStorage.setItem("wikiguess_custom_base_url", customBaseUrl);
     localStorage.setItem("wikiguess_custom_api_key", customApiKey);
+    localStorage.setItem("wikiguess_custom_model_name", customModelName);
     localStorage.setItem("huggingFaceToken", hfToken);
     setShowSettings(false);
     setFeedback({ text: "设置已保存", type: 'success' });
@@ -403,6 +433,7 @@ function App() {
       <Controls 
         onGuess={handleGuess}
         onNewGame={handleNewGame}
+        onRandomGame={handleRandomDateGame}
         onGiveUp={handleGiveUp}
         onShowLeaderboard={() => setShowLeaderboard(true)}
         onShare={handleShare}
@@ -453,6 +484,17 @@ function App() {
                             placeholder="sk-..."
                             className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"
                         />
+                      </div>
+                       <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
+                        <input 
+                            type="text" 
+                            value={customModelName} 
+                            onChange={(e) => setCustomModelName(e.target.value)}
+                            placeholder="gpt-4o-mini"
+                            className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">例如: gpt-4o-mini, gpt-3.5-turbo, deepseek-chat</p>
                       </div>
                   </div>
 

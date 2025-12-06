@@ -1,11 +1,13 @@
+
 import React, { useState, useRef } from 'react';
-import { Sparkles, Eye, Send, AlertCircle, AlertTriangle, Info, Trophy, Share2 } from 'lucide-react';
+import { Sparkles, Eye, Send, AlertCircle, AlertTriangle, Info, Trophy, Share2, Shuffle } from 'lucide-react';
 import { GameStatus } from '../types';
 import { Feedback } from '../App';
 
 interface ControlsProps {
   onGuess: (char: string) => void;
   onNewGame: () => void;
+  onRandomGame: () => void;
   onGiveUp: () => void;
   onShowLeaderboard: () => void;
   onShare: () => void;
@@ -18,6 +20,7 @@ interface ControlsProps {
 const Controls: React.FC<ControlsProps> = ({ 
   onGuess, 
   onNewGame, 
+  onRandomGame,
   onGiveUp, 
   onShowLeaderboard,
   onShare,
@@ -122,23 +125,36 @@ const Controls: React.FC<ControlsProps> = ({
                  <button 
                     onClick={onGiveUp}
                     disabled={status !== GameStatus.PLAYING}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-lg border border-gray-200 transition-all disabled:opacity-50"
+                    className="p-2 text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+                    title="看答案"
                 >
-                    <Eye size={16} />
-                    <span className="hidden sm:inline">看答案</span>
+                    <Eye size={20} />
                 </button>
+
+                <div className="h-8 w-px bg-gray-200 mx-1"></div>
                 
+                <button 
+                    onClick={onRandomGame}
+                    disabled={isLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-100 transition-all disabled:opacity-70 active:scale-95"
+                    title="近5个月随机题目"
+                >
+                    <Shuffle size={16} />
+                    <span className="hidden sm:inline">随机题</span>
+                </button>
+
                 <button 
                     onClick={onNewGame}
                     disabled={isLoading}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md shadow-blue-100 transition-all disabled:opacity-70 active:scale-95"
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md shadow-blue-100 transition-all disabled:opacity-70 active:scale-95"
+                    title="AI生成新题目"
                 >
                     {isLoading ? (
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                         <Sparkles size={16} />
                     )}
-                    <span>AI 出题</span>
+                    <span className="hidden sm:inline">AI 出题</span>
                 </button>
             </div>
         </div>

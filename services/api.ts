@@ -10,9 +10,14 @@ const getApiKey = () => {
   return localStorage.getItem("wikiguess_custom_api_key") || process.env.API_KEY;
 };
 
+const getModelName = () => {
+  return localStorage.getItem("wikiguess_custom_model_name") || "gpt-4o-mini";
+};
+
 export const generateAiPuzzle = async (): Promise<Article> => {
   const apiKey = getApiKey();
   const baseUrl = getBaseUrl();
+  const modelName = getModelName();
 
   if (!apiKey) {
     throw new Error("API Key is missing");
@@ -35,7 +40,7 @@ export const generateAiPuzzle = async (): Promise<Article> => {
         "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini", // Use a standard model name
+        model: modelName,
         messages: [
            { role: "system", content: "You are a helpful assistant that generates encyclopedia puzzles. You must output valid JSON." },
            { role: "user", content: prompt }
@@ -76,13 +81,15 @@ export const generateAiPuzzle = async (): Promise<Article> => {
   }
 };
 
-export const fetchDailyPuzzle = async (): Promise<Article> => {
-   // Format date as YYYYMMDD
-   const date = new Date();
-   const yyyy = date.getFullYear();
-   const mm = String(date.getMonth() + 1).padStart(2, '0');
-   const dd = String(date.getDate()).padStart(2, '0');
-   const dateStr = `${yyyy}${mm}${dd}`;
+export const fetchDailyPuzzle = async (dateStr?: string): Promise<Article> => {
+   // Format date as YYYYMMDD if not provided
+   if (!dateStr) {
+       const date = new Date();
+       const yyyy = date.getFullYear();
+       const mm = String(date.getMonth() + 1).padStart(2, '0');
+       const dd = String(date.getDate()).padStart(2, '0');
+       dateStr = `${yyyy}${mm}${dd}`;
+   }
 
    // Fetch from the external API
    try {
@@ -95,7 +102,7 @@ export const fetchDailyPuzzle = async (): Promise<Article> => {
        const json = await res.json();
        
        if (!json.success || !json.data?.data) {
-           throw new Error("Invalid daily puzzle data format");
+           throw new Error("Invalid daily puzzle data format or no data for this date");
        }
 
        const puzzleData = json.data.data;
