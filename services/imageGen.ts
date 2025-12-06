@@ -1,11 +1,12 @@
 
+
 import { GeneratedImage, AspectRatioOption, ModelOption } from "../types";
 
 const ZIMAGE_BASE_API_URL = process.env.ZIMAGE_API_URL || "https://luca115-z-image-turbo.hf.space";
 const QWEN_IMAGE_BASE_API_URL = process.env.QWEN_IMAGE_API_URL || "https://mcp-tools-qwen-image-fast.hf.space";
 const POLLINATIONS_API_URL = process.env.POLLINATIONS_API_URL || "https://text.pollinations.ai/openai";
 
-const getZImageDimensions = (ratio: AspectRatioOption, enableHD: boolean): { width: number; height: number } => {
+const getDimensions = (ratio: AspectRatioOption, enableHD: boolean): { width: number; height: number } => {
   if (enableHD) {
     switch (ratio) {
       case "16:9":
@@ -82,14 +83,33 @@ function extractCompleteEventData(sseStream: string): any | null {
           return null;
         }
       } else if (currentEvent === 'error') {
-         // Use server message if available, otherwise default to quota warning
-         // Clean up quotes if the server sends "Error string"
-         const serverMsg = dataStr.replace(/^['"]|['"]$/g, '');
+         // Fix: Handle potentially null or messy error strings
+         let serverMsg = "Unknown error";
+         if (dataStr && dataStr !== "null") {
+             serverMsg = dataStr.replace(/^['"]|['"]$/g, '');
+         }
          throw new Error(serverMsg || "Your today's quota has been used up. You can set up Hugging Face Token to get more quota.");
       }
     }
   }
   return null;
+}
+
+// Helper to resolve Gradio return values which might be file paths instead of URLs
+function resolveGradioUrl(fileObj: any, baseUrl: string): string {
+    if (!fileObj) return "";
+    // If it's already a full URL
+    if (fileObj.url) return fileObj.url;
+    // If it's a file path structure (common in Gradio 4+)
+    if (fileObj.path) {
+        // Construct full URL using the /file= endpoint
+        return `${baseUrl}/file=${fileObj.path}`;
+    }
+    // Fallback if it's just a string path
+    if (typeof fileObj === 'string') {
+        return `${baseUrl}/file=${fileObj}`;
+    }
+    return "";
 }
 
 const generateZImage = async (
@@ -98,7 +118,7 @@ const generateZImage = async (
   seed?: number,
   enableHD: boolean = false
 ): Promise<GeneratedImage> => {
-  let { width, height } = getZImageDimensions(aspectRatio, enableHD);
+  let { width, height } = getDimensions(aspectRatio, enableHD);
 
   try {
     const queue = await fetch(ZIMAGE_BASE_API_URL + '/gradio_api/call/generate_image', {
@@ -126,10 +146,14 @@ const generateZImage = async (
     const data = extractCompleteEventData(result);
 
     if (!data) throw new Error("Failed to extract data from event stream");
+    
+    // Resolve URL from data[0] which is the file object
+    const imageUrl = resolveGradioUrl(data[0], ZIMAGE_BASE_API_URL);
+    if (!imageUrl) throw new Error("Failed to resolve image URL from response");
 
     return {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      url: data[0].url,
+      url: imageUrl,
       model: 'z-image-turbo',
       prompt,
       aspectRatio,
@@ -175,9 +199,13 @@ const generateQwenImage = async (
 
     if (!data) throw new Error("Failed to extract data from event stream");
 
+    // Resolve URL from data[0] which is the file object
+    const imageUrl = resolveGradioUrl(data[0], QWEN_IMAGE_BASE_API_URL);
+    if (!imageUrl) throw new Error("Failed to resolve image URL from response");
+
     return {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      url: data[0].url,
+      url: imageUrl,
       model: 'qwen-image-fast',
       prompt,
       aspectRatio,
@@ -190,6 +218,32 @@ const generateQwenImage = async (
   }
 };
 
+const generatePollinationsImage = async (
+  prompt: string,
+  aspectRatio: AspectRatioOption,
+  seed?: number,
+  enableHD: boolean = false
+): Promise<GeneratedImage> => {
+  // Pollinations doesn't need a complex handshake, just a URL construction
+  const { width, height } = getDimensions(aspectRatio, enableHD);
+  const safeSeed = seed || Math.floor(Math.random() * 1000000);
+  
+  const encodedPrompt = encodeURIComponent(prompt);
+  // Construct URL directly. Adding nologo to clean it up.
+  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${safeSeed}&nologo=true`;
+
+  // Return the constructed URL object immediately
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+    url: url,
+    model: 'pollinations',
+    prompt,
+    aspectRatio,
+    timestamp: Date.now(),
+    seed: safeSeed
+  };
+};
+
 export const generateImage = async (
   model: ModelOption,
   prompt: string,
@@ -197,7 +251,9 @@ export const generateImage = async (
   seed?: number,
   enableHD: boolean = false
 ): Promise<GeneratedImage> => {
-  if (model === 'qwen-image-fast') {
+  if (model === 'pollinations') {
+    return generatePollinationsImage(prompt, aspectRatio, seed, enableHD);
+  } else if (model === 'qwen-image-fast') {
     return generateQwenImage(prompt, aspectRatio, seed, enableHD);
   } else {
     return generateZImage(prompt, aspectRatio, seed, enableHD);
@@ -216,7 +272,9 @@ export const optimizePrompt = async (originalPrompt: string): Promise<string> =>
         messages: [
           {
             role: 'system',
-            content: `I am a master AI image prompt engineering advisor. My core purpose is to meticulously rewrite, expand, and enhance user's image prompts into an Abstract Art style. Focus on abstract expressionism, geometric shapes, and conceptual representation. My generated prompt output will be strictly under 300 words.`
+            content: `I am a master AI image prompt engineering advisor. My core purpose is to meticulously rewrite, expand, and enhance user's image prompts into an Abstract Art style.
+IMPORTANT: You must translate any non-English input into English. The final output must be 100% in English.
+Focus on abstract expressionism, geometric shapes, and conceptual representation. My generated prompt output will be strictly under 300 words.`
           },
           {
             role: 'user',

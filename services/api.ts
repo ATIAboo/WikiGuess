@@ -1,17 +1,20 @@
 
+
 import { Article } from "../types";
 
 // Helpers to get configuration dynamically
 const getBaseUrl = () => {
-  return localStorage.getItem("wikiguess_custom_base_url") || "https://api.openai.com/v1";
+  return localStorage.getItem("wikiguess_custom_base_url") || "https://api.siliconflow.cn/v1";
 };
 
 const getApiKey = () => {
-  return localStorage.getItem("wikiguess_custom_api_key") || process.env.API_KEY;
+  const key = localStorage.getItem("wikiguess_custom_api_key");
+  // Default to the provided key if not set
+  return key || "sk-imkmvexzzdmxcypakexskbzaqqjmzybxfqebsbvccsupvhpo";
 };
 
 const getModelName = () => {
-  return localStorage.getItem("wikiguess_custom_model_name") || "gpt-4o-mini";
+  return localStorage.getItem("wikiguess_custom_model_name") || "deepseek-ai/DeepSeek-V3";
 };
 
 export const generateAiPuzzle = async (): Promise<Article> => {
@@ -19,39 +22,61 @@ export const generateAiPuzzle = async (): Promise<Article> => {
   const baseUrl = getBaseUrl();
   const modelName = getModelName();
 
-  if (!apiKey) {
-    throw new Error("API Key is missing");
+  if (!apiKey && !baseUrl.includes("pollinations.ai")) {
+    throw new Error("API Key is missing. Please check your settings.");
   }
 
-  const prompt = `生成一个类似于 'Redactle' 游戏的百科词条猜测谜题。请选择一个常见的、广为人知的概念（如历史、科学、流行文化、地理、成语、日常物品、名胜古迹）。
+  // Refined prompt for DeepSeek to ensure strictly valid JSON
+  const prompt = `你是一个出题助手。请生成一个类似“猜词游戏”的百科谜题。
+
+请严格遵守以下 JSON 格式返回，不要包含任何 markdown 格式标记（如 \`\`\`json）：
+{
+  "title": "词条标题（名词）",
+  "content": "词条的客观描述（200-300字，包含标点）。描述中可以直接包含标题词汇。"
+}
 
 要求：
-1. 语言必须是简体中文。
-2. 标题(title)应该是该词条的名词。
-3. 内容(content)是对该词条的客观描述，长度约200-300字，包含标点符号。
-4. 内容中可以出现标题本身，直接保留（游戏会自动隐藏）。
-5. 必须返回纯 JSON 格式。`;
+1. 语言：简体中文。
+2. 主题：选择一个广为人知的概念（历史、科学、文化、日常物品、成语、名胜等）。
+3. 必须是纯 JSON 字符串，不能有其他废话。`;
 
   try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
+    // URL Construction Logic
+    let fetchUrl = baseUrl;
+    // If user entered just the base (e.g. https://api.siliconflow.cn/v1), we append /chat/completions
+    // If they entered the full path, we use it.
+    if (!fetchUrl.endsWith("/chat/completions") && !fetchUrl.endsWith("/chat/completions/")) {
+        fetchUrl = `${fetchUrl.replace(/\/+$/, "")}/chat/completions`;
+    }
+
+    const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
+    };
+    
+    if (apiKey) {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetch(fetchUrl, {
+      method: "POST",
+      headers: headers,
       body: JSON.stringify({
         model: modelName,
         messages: [
-           { role: "system", content: "You are a helpful assistant that generates encyclopedia puzzles. You must output valid JSON." },
+           { role: "system", content: "You are a helpful assistant. Output valid JSON only." },
            { role: "user", content: prompt }
         ],
+        // Try to enforce JSON mode if supported by the provider
         response_format: { type: "json_object" },
-        temperature: 0.9
+        temperature: 1.0, 
+        max_tokens: 1000,
+        stream: false
       })
     });
 
     if (!response.ok) {
-        throw new Error(`AI API Error: ${response.status} ${response.statusText}`);
+        const errText = await response.text();
+        throw new Error(`AI API Error: ${response.status} ${response.statusText} - ${errText}`);
     }
 
     const data = await response.json();
@@ -59,30 +84,32 @@ export const generateAiPuzzle = async (): Promise<Article> => {
     
     if (!contentStr) throw new Error("No content received from AI");
 
-    const parsed = JSON.parse(contentStr);
-    
-    // Validate structure
-    if (!parsed.title || !parsed.content) {
-        throw new Error("Invalid JSON structure from AI");
-    }
+    // Clean up contentStr in case it has markdown code blocks
+    const cleanJsonStr = contentStr.replace(/```json\n?|```/g, "").trim();
 
-    return {
-        title: parsed.title,
-        content: parsed.content
-    };
+    try {
+        const parsed = JSON.parse(cleanJsonStr);
+        
+        if (!parsed.title || !parsed.content) {
+            throw new Error("Invalid JSON structure: missing title or content");
+        }
+
+        return {
+            title: parsed.title,
+            content: parsed.content
+        };
+    } catch (parseError) {
+        console.error("JSON Parse Error", parseError, "Raw content:", contentStr);
+        throw new Error("AI returned invalid JSON format.");
+    }
 
   } catch (error) {
     console.error("AI Generation Error", error);
-    // Fallback if AI fails
-    return {
-      title: "人工智能",
-      content: "人工智能（Artificial Intelligence），英文缩写为AI。它是研究、开发用于模拟、延伸和扩展人的智能的理论、方法、技术及应用系统的一门新的技术科学。人工智能是计算机科学的一个分支，它企图了解智能的实质，并生产出一种新的能以人类智能相似的方式做出反应的智能机器。"
-    };
+    throw error;
   }
 };
 
 export const fetchDailyPuzzle = async (dateStr?: string): Promise<Article> => {
-   // Format date as YYYYMMDD if not provided
    if (!dateStr) {
        const date = new Date();
        const yyyy = date.getFullYear();
@@ -91,7 +118,6 @@ export const fetchDailyPuzzle = async (dateStr?: string): Promise<Article> => {
        dateStr = `${yyyy}${mm}${dd}`;
    }
 
-   // Fetch from the external API
    try {
        const res = await fetch(`https://xiaoce.fun/api/v0/quiz/daily/baike/get?date=${dateStr}`);
        
@@ -107,12 +133,10 @@ export const fetchDailyPuzzle = async (dateStr?: string): Promise<Article> => {
 
        const puzzleData = json.data.data;
        
-       // The API returns paragraphs in a nested array structure: [ ["Para 1", "Para 2"] ]
        const paragraphGroups = puzzleData.content.paragraphs;
        let content = "";
 
        if (Array.isArray(paragraphGroups) && paragraphGroups.length > 0) {
-           // Assuming the first group contains the main text segments
            const textSegments = paragraphGroups[0];
            if (Array.isArray(textSegments)) {
                content = textSegments.join("\n\n");

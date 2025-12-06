@@ -1,8 +1,9 @@
 
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Article, GameStatus, isSymbol, ScoreRecord, AspectRatioOption, ModelOption } from './types';
 import { generateAiPuzzle, fetchDailyPuzzle } from './services/api';
-import { generateImage } from './services/imageGen';
+import { generateImage, optimizePrompt } from './services/imageGen';
 import { encodePuzzle, decodePuzzle, getStoredUsername, saveScore, getScores } from './services/storage';
 import ArticleRenderer from './components/ArticleRenderer';
 import Controls from './components/Controls';
@@ -34,7 +35,8 @@ function App() {
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<AspectRatioOption>('1:1');
-  const [imageModel, setImageModel] = useState<ModelOption>('z-image-turbo');
+  // Default to Pollinations
+  const [imageModel, setImageModel] = useState<ModelOption>('pollinations');
 
   // UI State
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -42,10 +44,11 @@ function App() {
   const [username, setUsername] = useState("匿名玩家");
   const [scores, setScores] = useState<ScoreRecord[]>([]);
 
-  // Settings State
-  const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem("wikiguess_custom_base_url") || "https://api.openai.com/v1");
-  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem("wikiguess_custom_api_key") || "");
-  const [customModelName, setCustomModelName] = useState(localStorage.getItem("wikiguess_custom_model_name") || "gpt-4o-mini");
+  // Settings State - Updated defaults for DeepSeek (SiliconFlow)
+  const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem("wikiguess_custom_base_url") || "https://api.siliconflow.cn/v1");
+  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem("wikiguess_custom_api_key") || "sk-imkmvexzzdmxcypakexskbzaqqjmzybxfqebsbvccsupvhpo");
+  // Default to DeepSeek-V3
+  const [customModelName, setCustomModelName] = useState(localStorage.getItem("wikiguess_custom_model_name") || "deepseek-ai/DeepSeek-V3");
   const [hfToken, setHfToken] = useState(localStorage.getItem("huggingFaceToken") || "");
 
   // Initialize Game Logic
@@ -113,8 +116,15 @@ function App() {
     setStatus(GameStatus.PLAYING);
     setFeedback(null);
     setGeneratedImageUrl(null); // Reset image
-    // Clear URL params
-    window.history.pushState({}, '', window.location.pathname);
+    
+    // Clear URL params safely
+    try {
+        const url = new URL(window.location.href);
+        url.search = '';
+        window.history.pushState({}, '', url.toString());
+    } catch (e) {
+        console.warn("Failed to update URL history:", e);
+    }
   };
 
   const checkWinCondition = (currentGuessed: Set<string>, currentArticle: Article, currentCount: number) => {
@@ -183,8 +193,10 @@ function App() {
       resetGame(newPuzzle);
       setFeedback({ text: "AI 出题成功！", type: 'success' });
     } catch (e) {
-      alert("生成题目失败，请检查设置中的 API Key 和 Base URL。");
-      setFeedback({ text: "生成失败，请重试", type: 'error' });
+      console.error(e);
+      // More informative alert
+      alert("生成题目失败。请检查设置中的 API 配置。");
+      setFeedback({ text: "生成失败，请检查设置", type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -220,11 +232,27 @@ function App() {
   const handleGenerateImage = async () => {
     if (!article) return;
     setIsGeneratingImage(true);
-    setFeedback({ text: "AI 正在绘制线索...", type: 'info' });
+    setFeedback({ text: "AI 正在构思画面 (英文翻译)...", type: 'info' });
     try {
-      // Enforce Abstract Art Style
-      const prompt = `Abstract art style, conceptual interpretation of ${article.title}. ${article.content.substring(0, 50)}... Abstract expressionism, geometric shapes, vibrant colors, surrealism, non-realistic, artistic masterpiece.`;
-      const result = await generateImage(imageModel, prompt, aspectRatio);
+      // 1. Construct raw concept
+      let rawConcept = `Abstract art style, conceptual interpretation of title: "${article.title}". Content: "${article.content.substring(0, 100)}...". Create an abstract expressionist masterpiece.`;
+      
+      // Clean up newlines for safety
+      rawConcept = rawConcept.replace(/\n/g, " ");
+
+      // 2. Optimize and Translate to English
+      const optimizedPrompt = await optimizePrompt(rawConcept);
+      
+      setFeedback({ text: "AI 正在绘制...", type: 'info' });
+
+      // 3. Generate Image using English prompt
+      const result = await generateImage(imageModel, optimizedPrompt, aspectRatio);
+      
+      // Check for valid URL
+      if (!result.url || result.url === "undefined") {
+          throw new Error("Generated image URL is invalid");
+      }
+
       setGeneratedImageUrl(result.url);
       setFeedback({ text: "图片生成成功！", type: 'success' });
     } catch (e: any) {
@@ -339,23 +367,6 @@ function App() {
             />
         </div>
 
-        {/* Incorrect Guesses Section */}
-        {wrongGuesses.length > 0 && (
-          <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-red-50">
-             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <AlertCircle className="text-red-500" size={16}/>
-                错误猜测 ({wrongGuesses.length})
-             </h3>
-             <div className="flex flex-wrap gap-2">
-                {wrongGuesses.map((char, idx) => (
-                   <span key={idx} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold shadow-sm">
-                      {char}
-                   </span>
-                ))}
-             </div>
-          </div>
-        )}
-
         {/* Puzzle Article */}
         {article && (
             <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-100 min-h-[30vh] transition-all mb-8 relative overflow-hidden">
@@ -386,6 +397,23 @@ function App() {
             </div>
         )}
 
+        {/* Incorrect Guesses Section - Moved below article */}
+        {wrongGuesses.length > 0 && (
+          <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-red-50">
+             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <AlertCircle className="text-red-500" size={16}/>
+                错误猜测 ({wrongGuesses.length})
+             </h3>
+             <div className="flex flex-wrap gap-2">
+                {wrongGuesses.map((char, idx) => (
+                   <span key={idx} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold shadow-sm">
+                      {char}
+                   </span>
+                ))}
+             </div>
+          </div>
+        )}
+
         {/* Image Generation Section - Moved to bottom */}
         {article && (
           <div className="mb-8 flex flex-col items-center">
@@ -400,7 +428,7 @@ function App() {
                       <Settings size={14} className="rotate-45" /> 
                    </button>
                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                      {imageModel === 'qwen-image-fast' ? 'Qwen' : 'Z-Image'} ({aspectRatio})
+                      {imageModel === 'pollinations' ? 'Pollinations' : imageModel === 'qwen-image-fast' ? 'Qwen' : 'Z-Image'} ({aspectRatio})
                    </div>
                 </div>
              ) : (
@@ -422,6 +450,7 @@ function App() {
                             className="text-xs border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 px-2 py-1.5 bg-white border shadow-sm outline-none flex-1"
                             disabled={isGeneratingImage}
                         >
+                            <option value="pollinations">Pollinations (Default)</option>
                             <option value="z-image-turbo">Turbo (Fast)</option>
                             <option value="qwen-image-fast">Qwen (Detail)</option>
                         </select>
@@ -482,9 +511,10 @@ function App() {
                             type="text" 
                             value={customBaseUrl} 
                             onChange={(e) => setCustomBaseUrl(e.target.value)}
-                            placeholder="https://api.openai.com/v1"
+                            placeholder="https://api.siliconflow.cn/v1"
                             className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"
                         />
+                        <p className="text-xs text-gray-500 mt-1">默认: https://api.siliconflow.cn/v1</p>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
@@ -502,10 +532,9 @@ function App() {
                             type="text" 
                             value={customModelName} 
                             onChange={(e) => setCustomModelName(e.target.value)}
-                            placeholder="gpt-4o-mini"
+                            placeholder="deepseek-ai/DeepSeek-V3"
                             className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"
                         />
-                        <p className="text-xs text-gray-500 mt-1">例如: gpt-4o-mini, gpt-3.5-turbo, deepseek-chat</p>
                       </div>
                   </div>
 
@@ -523,7 +552,7 @@ function App() {
                             className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                            可选。配置 Token 可获得更多绘图额度。
+                            可选。Turbo/Qwen 模型配置 Token 可获得更多额度。Pollinations 不需要。
                         </p>
                       </div>
                   </div>

@@ -30,7 +30,7 @@ export interface ScoreRecord {
 }
 
 export type AspectRatioOption = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3" | "5:4" | "4:5";
-export type ModelOption = "z-image-turbo" | "qwen-image-fast";
+export type ModelOption = "z-image-turbo" | "qwen-image-fast" | "pollinations";
 
 export interface GeneratedImage {
   id: string;
