@@ -20,9 +20,9 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
   const lines = useMemo(() => text.split('\n'), [text]);
 
   return (
-    <div className={`space-y-4 ${isTitle ? 'mb-6 text-center' : ''}`}>
+    <div className={`space-y-2 ${isTitle ? 'mb-4 text-center' : ''}`}>
       {lines.map((line, lineIndex) => (
-        <div key={lineIndex} className={`flex flex-wrap gap-1 ${isTitle ? 'justify-center' : 'justify-start leading-tight'}`}>
+        <div key={lineIndex} className={`flex flex-wrap gap-0.5 ${isTitle ? 'justify-center' : 'justify-start leading-tight'}`}>
           {line.split('').map((char, charIndex) => {
             const charLower = char.toLowerCase();
             const isPunctuation = isSymbol(char);

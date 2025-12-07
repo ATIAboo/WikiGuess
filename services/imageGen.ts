@@ -1,10 +1,14 @@
-
-
+import OpenAI from "openai";
 import { GeneratedImage, AspectRatioOption, ModelOption } from "../types";
 
-const ZIMAGE_BASE_API_URL = process.env.ZIMAGE_API_URL || "https://luca115-z-image-turbo.hf.space";
-const QWEN_IMAGE_BASE_API_URL = process.env.QWEN_IMAGE_API_URL || "https://mcp-tools-qwen-image-fast.hf.space";
-const POLLINATIONS_API_URL = process.env.POLLINATIONS_API_URL || "https://text.pollinations.ai/openai";
+const QWEN_IMAGE_BASE_API_URL = (import.meta as any).env?.VITE_QWEN_IMAGE_API_URL || "https://mcp-tools-qwen-image-fast.hf.space";
+const POLLINATIONS_API_URL = (import.meta as any).env?.VITE_POLLINATIONS_API_URL || "https://text.pollinations.ai/openai";
+const GITEE_AI_BASE_URL = "https://ai.gitee.com/v1";
+
+// Helper to get Gitee API Key
+const getGiteeApiKey = () => {
+  return localStorage.getItem("gitee_ai_api_key") || (import.meta as any).env?.VITE_GITEE_AI_API_KEY || "";
+};
 
 const getDimensions = (ratio: AspectRatioOption, enableHD: boolean): { width: number; height: number } => {
   if (enableHD) {
@@ -83,34 +87,30 @@ function extractCompleteEventData(sseStream: string): any | null {
           return null;
         }
       } else if (currentEvent === 'error') {
-         // Fix: Handle potentially null or messy error strings
          let serverMsg = "Unknown error";
          if (dataStr && dataStr !== "null") {
              serverMsg = dataStr.replace(/^['"]|['"]$/g, '');
          }
-         throw new Error(serverMsg || "Your today's quota has been used up. You can set up Hugging Face Token to get more quota.");
+         throw new Error(serverMsg || "Quota exceeded or API error.");
       }
     }
   }
   return null;
 }
 
-// Helper to resolve Gradio return values which might be file paths instead of URLs
 function resolveGradioUrl(fileObj: any, baseUrl: string): string {
     if (!fileObj) return "";
-    // If it's already a full URL
     if (fileObj.url) return fileObj.url;
-    // If it's a file path structure (common in Gradio 4+)
     if (fileObj.path) {
-        // Construct full URL using the /file= endpoint
         return `${baseUrl}/file=${fileObj.path}`;
     }
-    // Fallback if it's just a string path
     if (typeof fileObj === 'string') {
         return `${baseUrl}/file=${fileObj}`;
     }
     return "";
 }
+
+// --- Gitee AI / Z-Image Turbo Implementation ---
 
 const generateZImage = async (
   prompt: string,
@@ -118,38 +118,41 @@ const generateZImage = async (
   seed?: number,
   enableHD: boolean = false
 ): Promise<GeneratedImage> => {
-  let { width, height } = getDimensions(aspectRatio, enableHD);
+  const apiKey = getGiteeApiKey();
+  if (!apiKey) {
+    throw new Error("Gitee AI API Key is missing. Please configure it in Settings.");
+  }
+
+  // Calculate resolution string (e.g. "1024x1024")
+  const { width, height } = getDimensions(aspectRatio, enableHD);
+  const sizeString = `${width}x${height}`;
+
+  const client = new OpenAI({
+    baseURL: GITEE_AI_BASE_URL,
+    apiKey: apiKey,
+    dangerouslyAllowBrowser: true // Required for client-side use
+  });
 
   try {
-    const queue = await fetch(ZIMAGE_BASE_API_URL + '/gradio_api/call/generate_image', {
-      method: "POST",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        data: [prompt, height, width, 8, seed || 42, seed === undefined]
-      })
-    })
-    
-    if (!queue.ok) {
-        throw new Error(`Queue error: ${queue.status} ${queue.statusText}`);
-    }
-
-    const { event_id } = await queue.json();
-    const response = await fetch(ZIMAGE_BASE_API_URL + '/gradio_api/call/generate_image/' + event_id, {
-      headers: getAuthHeaders()
+    const response = await client.images.generate({
+      prompt: prompt,
+      model: "z-image-turbo",
+      size: sizeString as any, // Cast to any because OpenAI SDK types are strict about specific enums
+      // The Gitee API supports num_inference_steps via standard or extra params, 
+      // but usually the default is fine. The user provided example implies standard OpenAI call structure.
     });
-    
-    if (!response.ok) {
-         throw new Error(`Response error: ${response.status} ${response.statusText}`);
+
+    const data = response.data[0];
+    let imageUrl = data.url;
+
+    // Handle b64_json if url is missing (though Gitee usually returns URL)
+    if (!imageUrl && data.b64_json) {
+        imageUrl = `data:image/jpeg;base64,${data.b64_json}`;
     }
 
-    const result = await response.text();
-    const data = extractCompleteEventData(result);
-
-    if (!data) throw new Error("Failed to extract data from event stream");
-    
-    // Resolve URL from data[0] which is the file object
-    const imageUrl = resolveGradioUrl(data[0], ZIMAGE_BASE_API_URL);
-    if (!imageUrl) throw new Error("Failed to resolve image URL from response");
+    if (!imageUrl) {
+        throw new Error("No image URL or data returned from Gitee AI");
+    }
 
     return {
       id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -158,13 +161,18 @@ const generateZImage = async (
       prompt,
       aspectRatio,
       timestamp: Date.now(),
-      seed: data[1]
+      seed: seed || 0 // API might not return the seed used
     };
-  } catch (error) {
-    console.error("Z-Image Turbo Generation Error:", error);
-    throw error;
+
+  } catch (error: any) {
+    console.error("Gitee AI Image Generation Error:", error);
+    // Extract helpful error message if possible
+    const msg = error?.response?.data?.error?.message || error.message;
+    throw new Error(`Gitee AI Error: ${msg}`);
   }
 };
+
+// --- Qwen Image Fast (HuggingFace) ---
 
 const generateQwenImage = async (
   prompt: string,
@@ -199,7 +207,6 @@ const generateQwenImage = async (
 
     if (!data) throw new Error("Failed to extract data from event stream");
 
-    // Resolve URL from data[0] which is the file object
     const imageUrl = resolveGradioUrl(data[0], QWEN_IMAGE_BASE_API_URL);
     if (!imageUrl) throw new Error("Failed to resolve image URL from response");
 
@@ -218,21 +225,20 @@ const generateQwenImage = async (
   }
 };
 
+// --- Pollinations AI ---
+
 const generatePollinationsImage = async (
   prompt: string,
   aspectRatio: AspectRatioOption,
   seed?: number,
   enableHD: boolean = false
 ): Promise<GeneratedImage> => {
-  // Pollinations doesn't need a complex handshake, just a URL construction
   const { width, height } = getDimensions(aspectRatio, enableHD);
   const safeSeed = seed || Math.floor(Math.random() * 1000000);
   
   const encodedPrompt = encodeURIComponent(prompt);
-  // Construct URL directly. Adding nologo to clean it up.
   const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=${width}&height=${height}&seed=${safeSeed}&nologo=true`;
 
-  // Return the constructed URL object immediately
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
     url: url,
@@ -256,6 +262,7 @@ export const generateImage = async (
   } else if (model === 'qwen-image-fast') {
     return generateQwenImage(prompt, aspectRatio, seed, enableHD);
   } else {
+    // z-image-turbo now uses Gitee AI
     return generateZImage(prompt, aspectRatio, seed, enableHD);
   }
 };
@@ -272,9 +279,10 @@ export const optimizePrompt = async (originalPrompt: string): Promise<string> =>
         messages: [
           {
             role: 'system',
-            content: `I am a master AI image prompt engineering advisor. My core purpose is to meticulously rewrite, expand, and enhance user's image prompts into an Abstract anime Art style.
-IMPORTANT: You must translate any non-English input into English. The final output must be 100% in English.
-Focus on abstract expressionism, geometric shapes, and conceptual representation. My generated prompt output will be strictly under 300 words.`
+            content: `I am a master AI image prompt engineering advisor. My core purpose is to meticulously rewrite, expand, and enhance user's image prompts into a Surrealism/Dreamlike style (Salvador Dali style).
+Core Logic: Break physical laws, blend object features into the environment, making it feel familiar yet identifiable only as a concept, not a literal object.
+Template: A surreal dreamscape featuring the concept of [Subject], Salvador Dali style, melting forms, floating objects, misty atmosphere, impossible geometry, oil painting texture, mysterious and abstract --no text.
+IMPORTANT: You must translate any non-English input into English. The final output must be 100% in English. My generated prompt output will be strictly under 300 words.Ensure the image is abstract and artistic, do not depict the object literally, make it a visual riddle.`
           },
           {
             role: 'user',

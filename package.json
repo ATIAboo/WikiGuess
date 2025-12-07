@@ -11,7 +11,8 @@
   "dependencies": {
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "openai": "^4.28.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
@@ -19,6 +20,6 @@
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.57.0"
   }
 }
