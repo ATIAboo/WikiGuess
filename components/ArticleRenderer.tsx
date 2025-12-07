@@ -20,9 +20,9 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
   const lines = useMemo(() => text.split('\n'), [text]);
 
   return (
-    <div className={`space-y-6 ${isTitle ? 'mb-8 text-center' : ''}`}>
+    <div className={`space-y-4 ${isTitle ? 'mb-6 text-center' : ''}`}>
       {lines.map((line, lineIndex) => (
-        <div key={lineIndex} className={`flex flex-wrap gap-1.5 ${isTitle ? 'justify-center' : 'justify-start leading-relaxed'}`}>
+        <div key={lineIndex} className={`flex flex-wrap gap-1 ${isTitle ? 'justify-center' : 'justify-start leading-tight'}`}>
           {line.split('').map((char, charIndex) => {
             const charLower = char.toLowerCase();
             const isPunctuation = isSymbol(char);
@@ -32,7 +32,7 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
             const isSpace = char === ' ';
 
             if (isSpace) {
-               return <span key={charIndex} className={`${isTitle ? 'w-4' : 'w-2'} inline-block`}></span>;
+               return <span key={charIndex} className={`${isTitle ? 'w-2 md:w-4' : 'w-1 md:w-2'} inline-block`}></span>;
             }
 
             // Style determination
@@ -42,7 +42,7 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
             if (isPunctuation) {
                 // Punctuation is just text, no box
                 return (
-                    <span key={`${lineIndex}-${charIndex}`} className={`flex items-end pb-1 ${isTitle ? 'text-2xl' : 'text-lg text-gray-700'}`}>
+                    <span key={`${lineIndex}-${charIndex}`} className={`flex items-end pb-0.5 ${isTitle ? 'text-xl md:text-2xl' : 'text-sm md:text-lg text-gray-700'}`}>
                         {char}
                     </span>
                 );
@@ -74,10 +74,10 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
               <span
                 key={`${lineIndex}-${charIndex}`}
                 className={`
-                  transition-all duration-500 ease-out 
+                  transition-all duration-300 ease-out 
                   inline-flex items-center justify-center rounded border
                   select-none
-                  ${isTitle ? 'w-10 h-10 text-2xl mb-1' : 'w-7 h-7 text-base mb-1'}
+                  ${isTitle ? 'w-8 h-8 md:w-10 md:h-10 text-xl md:text-2xl mb-1' : 'w-5 h-5 md:w-7 md:h-7 text-xs md:text-base mb-0.5'}
                   ${tileStyle}
                   ${textStyle}
                 `}

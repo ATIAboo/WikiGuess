@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Article, GameStatus, isSymbol, ScoreRecord, AspectRatioOption, ModelOption } from './types';
 import { generateAiPuzzle, fetchDailyPuzzle } from './services/api';
@@ -7,8 +6,9 @@ import { generateImage, optimizePrompt } from './services/imageGen';
 import { encodePuzzle, decodePuzzle, getStoredUsername, saveScore, getScores } from './services/storage';
 import ArticleRenderer from './components/ArticleRenderer';
 import Controls from './components/Controls';
+import GameActions from './components/GameActions';
 import Leaderboard from './components/Leaderboard';
-import { BookOpen, AlertCircle, User, Calendar, Settings, Image as ImageIcon, Loader2, Share2, Trophy } from 'lucide-react';
+import { BookOpen, AlertCircle, Calendar, Settings, Image as ImageIcon, Loader2, Share2, Trophy } from 'lucide-react';
 
 const FALLBACK_PUZZLE: Article = {
   title: "大熊猫",
@@ -44,12 +44,20 @@ function App() {
   const [username, setUsername] = useState("匿名玩家");
   const [scores, setScores] = useState<ScoreRecord[]>([]);
 
-  // Settings State - Updated defaults for DeepSeek (SiliconFlow)
-  const [customBaseUrl, setCustomBaseUrl] = useState(localStorage.getItem("wikiguess_custom_base_url") || "https://api.siliconflow.cn/v1");
-  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem("wikiguess_custom_api_key") || "");
-  // Default to DeepSeek-V3
-  const [customModelName, setCustomModelName] = useState(localStorage.getItem("wikiguess_custom_model_name") || "deepseek-ai/DeepSeek-V3");
-  const [hfToken, setHfToken] = useState(localStorage.getItem("huggingFaceToken") || "");
+  // Settings State 
+  // Priority: Local Storage -> Env Var -> Default
+  const [customBaseUrl, setCustomBaseUrl] = useState(() => 
+    localStorage.getItem("wikiguess_custom_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "https://api.siliconflow.cn/v1"
+  );
+  const [customApiKey, setCustomApiKey] = useState(() => 
+    localStorage.getItem("wikiguess_custom_api_key") || (import.meta as any).env?.VITE_API_KEY || ""
+  );
+  const [customModelName, setCustomModelName] = useState(() => 
+    localStorage.getItem("wikiguess_custom_model_name") || (import.meta as any).env?.VITE_API_MODEL_NAME || "deepseek-ai/DeepSeek-V3"
+  );
+  const [hfToken, setHfToken] = useState(() => 
+    localStorage.getItem("huggingFaceToken") || (import.meta as any).env?.VITE_HF_TOKEN || ""
+  );
 
   // Initialize Game Logic
   const initGame = useCallback(async () => {
@@ -150,6 +158,10 @@ function App() {
       
       setTimeout(() => setShowLeaderboard(true), 1500);
     }
+  };
+
+  const handleInputError = (msg: string) => {
+      setFeedback({ text: msg, type: 'warning' });
   };
 
   const handleGuess = useCallback((char: string) => {
@@ -313,13 +325,13 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col bg-[#fdfdfd] text-gray-900 font-sans">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 py-4 shadow-sm sticky top-0 z-40">
+      <header className="bg-white border-b border-gray-100 py-3 shadow-sm sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-gray-900 text-white p-2 rounded-lg shadow-sm">
-                <BookOpen size={20} />
+          <div className="flex items-center gap-2">
+            <div className="bg-gray-900 text-white p-1.5 rounded-lg shadow-sm">
+                <BookOpen size={18} />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-gray-900 hidden sm:block">
+            <h1 className="text-lg font-bold tracking-tight text-gray-900 hidden sm:block">
                 <span className="text-blue-600">Wiki</span>Guess 猜百科
             </h1>
           </div>
@@ -329,14 +341,14 @@ function App() {
                 className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
                 title="分享"
              >
-                <Share2 size={20} />
+                <Share2 size={18} />
              </button>
              <button 
                 onClick={() => setShowLeaderboard(true)}
                 className="flex items-center gap-2 text-gray-600 hover:bg-gray-100 pl-2 pr-3 py-1.5 rounded-full transition-colors"
                 title="排行榜"
              >
-                <Trophy size={18} className="text-yellow-500" />
+                <Trophy size={16} className="text-yellow-500" />
                 <span className="font-medium max-w-[80px] truncate hidden sm:inline">{username}</span>
              </button>
              <button
@@ -344,69 +356,78 @@ function App() {
                 className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
                 title="设置"
              >
-                <Settings size={20} />
+                <Settings size={18} />
              </button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 md:py-10">
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-6">
         
-        {/* Inline Controls (Input + Actions) - Moved to top */}
-        <div className="mb-6">
+        {/* Controls (Input) - Sticky just below header or normal flow */}
+        <div className="mb-4">
             <Controls 
                 onGuess={handleGuess}
-                onNewGame={handleNewGame}
-                onRandomGame={handleRandomDateGame}
-                onGiveUp={handleGiveUp}
                 guessCount={guessCount}
                 status={status}
                 isLoading={isLoading}
                 feedback={feedback}
+                onInputError={handleInputError}
             />
         </div>
 
         {/* Puzzle Article */}
         {article && (
-            <div className="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-100 min-h-[30vh] transition-all mb-8 relative overflow-hidden">
-            {/* Date Badge if likely daily puzzle */}
-            {article.content.length > 300 && !isLoading && (
-               <div className="absolute top-0 right-0 p-4 opacity-50 pointer-events-none">
-                  <Calendar className="text-gray-300" size={48} />
-               </div>
-            )}
-            
-            <ArticleRenderer 
-                text={article.title} 
-                guessedChars={guessedChars} 
-                status={status}
-                isTitle={true}
-            />
-            
-            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-8" />
-            
-            <div className="font-serif">
+            <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-gray-100 min-h-[30vh] transition-all mb-4 relative overflow-hidden">
+                {/* Date Badge if likely daily puzzle */}
+                {article.content.length > 300 && !isLoading && (
+                <div className="absolute top-0 right-0 p-4 opacity-50 pointer-events-none">
+                    <Calendar className="text-gray-300" size={48} />
+                </div>
+                )}
+                
                 <ArticleRenderer 
-                    text={article.content} 
+                    text={article.title} 
                     guessedChars={guessedChars} 
                     status={status}
-                    isTitle={false}
+                    isTitle={true}
                 />
-            </div>
+                
+                <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-6" />
+                
+                <div className="font-serif">
+                    <ArticleRenderer 
+                        text={article.content} 
+                        guessedChars={guessedChars} 
+                        status={status}
+                        isTitle={false}
+                    />
+                </div>
             </div>
         )}
 
-        {/* Incorrect Guesses Section - Moved below article */}
+        {/* Game Action Buttons - Moved Below Article */}
+        <GameActions 
+            onNewGame={handleNewGame}
+            onRandomGame={handleRandomDateGame}
+            onGiveUp={handleGiveUp}
+            status={status}
+            isLoading={isLoading}
+        />
+
+        <div className="h-8"></div>
+
+        {/* Incorrect Guesses Section */}
         {wrongGuesses.length > 0 && (
-          <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-red-50">
-             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <AlertCircle className="text-red-500" size={16}/>
+          <div className="mb-8 bg-white p-4 rounded-2xl shadow-sm border border-red-50">
+             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertCircle className="text-red-500" size={14}/>
                 错误猜测 ({wrongGuesses.length})
              </h3>
              <div className="flex flex-wrap gap-2">
                 {wrongGuesses.map((char, idx) => (
-                   <span key={idx} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold shadow-sm">
+                   <span key={idx} className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-lg font-bold shadow-sm text-sm">
                       {char}
                    </span>
                 ))}
@@ -414,9 +435,9 @@ function App() {
           </div>
         )}
 
-        {/* Image Generation Section - Moved to bottom */}
+        {/* Image Generation Section */}
         {article && (
-          <div className="mb-8 flex flex-col items-center">
+          <div className="mb-10 flex flex-col items-center">
              {generatedImageUrl ? (
                 <div className="relative w-full rounded-2xl overflow-hidden shadow-lg border border-gray-200 group">
                    <img src={generatedImageUrl} alt="Generated Hint" className="w-full h-auto object-cover max-h-[500px]" />
@@ -432,13 +453,13 @@ function App() {
                    </div>
                 </div>
              ) : (
-                <div className="w-full p-6 bg-indigo-50 border border-indigo-100 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="w-full p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                    <div className="flex items-center gap-3 text-indigo-800 self-start md:self-center">
                       <div className="bg-indigo-200 p-2 rounded-lg">
                         <ImageIcon size={20} />
                       </div>
                       <div className="text-sm font-medium">
-                        不知道是什么？生成一张 AI 线索图吧！
+                        需要提示？生成一张 AI 线索图
                       </div>
                    </div>
                    
@@ -447,7 +468,7 @@ function App() {
                         <select 
                             value={imageModel}
                             onChange={(e) => setImageModel(e.target.value as ModelOption)}
-                            className="text-xs border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 px-2 py-1.5 bg-white border shadow-sm outline-none flex-1"
+                            className="text-xs border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 px-2 py-2 bg-white border shadow-sm outline-none flex-1"
                             disabled={isGeneratingImage}
                         >
                             <option value="pollinations">Pollinations (Default)</option>
@@ -457,7 +478,7 @@ function App() {
                         <select 
                             value={aspectRatio}
                             onChange={(e) => setAspectRatio(e.target.value as AspectRatioOption)}
-                            className="text-xs border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 px-2 py-1.5 bg-white border shadow-sm outline-none w-20"
+                            className="text-xs border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 px-2 py-2 bg-white border shadow-sm outline-none w-20"
                             disabled={isGeneratingImage}
                         >
                             <option value="1:1">1:1</option>
@@ -470,7 +491,7 @@ function App() {
                       <button
                         onClick={handleGenerateImage}
                         disabled={isGeneratingImage}
-                        className="w-full sm:w-auto px-4 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg shadow hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg shadow hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                          {isGeneratingImage && <Loader2 size={14} className="animate-spin" />}
                          生成图片
