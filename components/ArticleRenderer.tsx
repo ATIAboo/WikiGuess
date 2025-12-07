@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { isSymbol, GameStatus } from '../types';
 
@@ -49,8 +50,9 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
 
             if (!isRevealed) {
                 // Hidden State (Black/Dark Box)
+                // Text is NOT rendered in DOM, so styling handles the box only.
                 tileStyle = "bg-gray-900 border-gray-900 shadow-sm";
-                textStyle = "text-transparent";
+                textStyle = ""; 
             } else {
                 // Revealed State (Tile look)
                 if (isGuessed && status === GameStatus.PLAYING) {
@@ -80,7 +82,8 @@ const ArticleRenderer: React.FC<ArticleRendererProps> = ({
                   ${textStyle}
                 `}
               >
-                {char}
+                {/* Security: Only render the character if it is revealed. Otherwise render null. */}
+                {isRevealed ? char : null}
               </span>
             );
           })}
