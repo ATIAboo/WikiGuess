@@ -299,7 +299,8 @@ export const optimizePrompt = async (originalPrompt: string): Promise<string> =>
 范例二 (最高难度)：
 用户输入： “赘婿” (Matrilocal Son-in-law)
 你的思考： 这是一个社会概念。核心是“压抑”、“权力的不对等”和“无法融入”。我不能画家庭。我要用极端的油画厚涂风格。画一堵巨大的、古老的、深红色的墙（代表庞大的家族势力），在角落里挤压、吞没一个小小的、苍白的灰色色块（代表个体）。
-你输出的 Prompt： A sculptural abstract oil painting with extreme impasto texture. A massive, overwhelming wall of deep, oppressive ancestral reds, heavy oxidized golds, and dark monolithic browns dominates the canvas. In a restricted lower corner, a small, isolated, thin patch of muted, pale cool grey pigment is being physically swallowed by the encroaching thick layers of warm, heavy paint. The texture conveys immense weight and suffocation. No figures. --ar 16:9Ensure the image is abstract and artistic, do not depict the object literally, make it a visual riddle.`
+你输出的 Prompt： A sculptural abstract oil painting with extreme impasto texture. A massive, overwhelming wall of deep, oppressive ancestral reds, heavy oxidized golds, and dark monolithic browns dominates the canvas. In a restricted lower corner, a small, isolated, thin patch of muted, pale cool grey pigment is being physically swallowed by the encroaching thick layers of warm, heavy paint. The texture conveys immense weight and suffocation. No figures. --ar 16:9Ensure the image is abstract and artistic, do not depict the object literally, make it a visual riddle.
+注意，只输出promt即可`
           },
           {
             role: 'user',

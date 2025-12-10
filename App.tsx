@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { Article, GameStatus, isSymbol, ScoreRecord, AspectRatioOption, ModelOption } from './types';
 import { generateAiPuzzle, fetchDailyPuzzle } from './services/api';
@@ -7,7 +8,7 @@ import ArticleRenderer from './components/ArticleRenderer';
 import Controls from './components/Controls';
 import GameActions from './components/GameActions';
 import Leaderboard from './components/Leaderboard';
-import { BookOpen, AlertCircle, Calendar, Settings, Image as ImageIcon, Loader2, Share2, Trophy, X, Save, Sparkles } from 'lucide-react';
+import { BookOpen, AlertCircle, Calendar, Settings, Image as ImageIcon, Loader2, Share2, Trophy, X, Save, Sparkles, Frown } from 'lucide-react';
 
 const FALLBACK_PUZZLE: Article = {
   title: "大熊猫",
@@ -32,6 +33,7 @@ function App() {
   
   // Image Generation State
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [finalPrompt, setFinalPrompt] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<AspectRatioOption>('1:1');
   // Default to z-image-turbo (Gitee AI)
@@ -40,6 +42,9 @@ function App() {
   // UI State
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGiveUpModal, setShowGiveUpModal] = useState(false);
+  const [giveUpStep, setGiveUpStep] = useState(0); // Kept for potential future use or varying text, but logic simplified
+
   const [username, setUsername] = useState("匿名玩家");
   const [scores, setScores] = useState<ScoreRecord[]>([]);
 
@@ -175,11 +180,32 @@ function App() {
     }
   };
 
-  const handleGiveUp = () => {
-    if (status === GameStatus.PLAYING && article) {
-        setStatus(GameStatus.GAVE_UP);
-        setFeedback({ text: `游戏结束。答案是：${article.title}`, type: 'info' });
+  const handleGiveUpClick = () => {
+    if (status === GameStatus.PLAYING) {
+        setGiveUpStep(0);
+        setShowGiveUpModal(true);
     }
+  };
+
+  // The "Fake" confirm that actually closes the modal
+  const handleGiveUpConfirm = () => {
+      setShowGiveUpModal(false);
+      setGiveUpStep(0);
+  };
+
+  // The "Cancel" button that also closes the modal
+  const handleGiveUpCancel = () => {
+      setShowGiveUpModal(false);
+      setGiveUpStep(0);
+  };
+
+  // The Secret Easter Egg Reveal (Clicking the face)
+  const handleSecretReveal = () => {
+      setShowGiveUpModal(false);
+      setStatus(GameStatus.GAVE_UP);
+      if (article) {
+        setFeedback({ text: `游戏结束。答案是：${article.title}`, type: 'info' });
+      }
   };
 
   const handleNewGame = async () => {
@@ -187,6 +213,7 @@ function App() {
     setIsLoading(true);
     setFeedback({ text: 'AI 正在出题中...', type: 'info' });
     setGeneratedImageUrl(null);
+    setFinalPrompt(null);
 
     try {
         const newArticle = await generateAiPuzzle();
@@ -211,11 +238,36 @@ function App() {
     }
   };
 
+  const handleDateSelection = async (date: string) => {
+    if (isLoading) return;
+    // Format YYYY-MM-DD to YYYYMMDD
+    const dateStr = date.replace(/-/g, '');
+    
+    setIsLoading(true);
+    setFeedback({ text: `正在加载 ${date} 的题目...`, type: 'info' });
+    setGeneratedImageUrl(null);
+    setFinalPrompt(null);
+
+    try {
+        const puzzle = await fetchDailyPuzzle(dateStr);
+        setArticle(puzzle);
+        setGuessedChars(new Set());
+        setGuessCount(0);
+        setStatus(GameStatus.PLAYING);
+        setFeedback({ text: `已加载 ${date} 的题目`, type: 'success' });
+    } catch (e) {
+        setFeedback({ text: '获取该日期题目失败，可能当天没有数据', type: 'error' });
+    } finally {
+        setIsLoading(false);
+    }
+  }
+
   const handleRandomDateGame = async () => {
     if (isLoading) return;
     setIsLoading(true);
     setFeedback({ text: '正在抽取历史题目...', type: 'info' });
     setGeneratedImageUrl(null);
+    setFinalPrompt(null);
     
     // Get random date from last 150 days
     const today = new Date();
@@ -244,11 +296,14 @@ function App() {
     if (!article) return;
     setIsGeneratingImage(true);
     setFeedback({ text: 'AI 正在构思画面...', type: 'info' });
+    setFinalPrompt(null);
 
     try {
         // 1. Optimize Prompt (Translate to English / Abstract Style)
-        const prompt = `Abstract artistic representation of: ${article.title}. ${article.content.substring(0, 100)}`;
-        const optimizedPrompt = await optimizePrompt(prompt);
+        // Pass a structured context for the new "Abstract Metaphor" method
+        const concept = `Concept: ${article.title}. Context: ${article.content.substring(0, 200)}`;
+        const optimizedPrompt = await optimizePrompt(concept);
+        setFinalPrompt(optimizedPrompt);
         
         // 2. Generate
         setFeedback({ text: 'AI 正在绘制...', type: 'info' });
@@ -362,7 +417,8 @@ function App() {
         <GameActions 
             onNewGame={handleNewGame}
             onRandomGame={handleRandomDateGame}
-            onGiveUp={handleGiveUp}
+            onGiveUp={handleGiveUpClick}
+            onDateChange={handleDateSelection}
             status={status}
             isLoading={isLoading}
         />
@@ -423,24 +479,32 @@ function App() {
                 </div>
              </div>
              
-             <div className="min-h-[200px] flex items-center justify-center bg-gray-100/50 p-4">
+             <div className="min-h-[200px] flex flex-col items-center justify-center bg-gray-100/50 p-4 gap-4">
                  {generatedImageUrl ? (
-                    <div className="relative group rounded-lg overflow-hidden shadow-md max-w-full">
-                        <img 
-                            src={generatedImageUrl} 
-                            alt="AI Generated Hint" 
-                            className="max-w-full h-auto max-h-[500px] object-contain"
-                            loading="lazy"
-                        />
-                        <a 
-                            href={generatedImageUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-                        >
-                            <Share2 size={16} />
-                        </a>
-                    </div>
+                    <>
+                        <div className="relative group rounded-lg overflow-hidden shadow-md max-w-full">
+                            <img 
+                                src={generatedImageUrl} 
+                                alt="AI Generated Hint" 
+                                className="max-w-full h-auto max-h-[500px] object-contain"
+                                loading="lazy"
+                            />
+                            <a 
+                                href={generatedImageUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="absolute bottom-2 right-2 p-1.5 bg-black/60 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                            >
+                                <Share2 size={16} />
+                            </a>
+                        </div>
+                        {finalPrompt && (
+                            <div className="w-full max-w-lg bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-500 leading-relaxed font-mono break-words shadow-sm">
+                                <span className="font-bold text-gray-700 block mb-1">Prompt:</span>
+                                {finalPrompt}
+                            </div>
+                        )}
+                    </>
                  ) : (
                     <div className="text-gray-400 text-sm flex flex-col items-center gap-2">
                         <ImageIcon size={32} className="opacity-20" />
@@ -451,6 +515,47 @@ function App() {
         </div>
 
       </main>
+
+      {/* Give Up Confirmation Modal */}
+      {showGiveUpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+             <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden text-center">
+                <div className="p-6">
+                    {/* Easter Egg Trigger: Click the face to reveal answer */}
+                    <div 
+                        onClick={handleSecretReveal}
+                        title="点我试试？"
+                        className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-600 cursor-pointer hover:scale-110 active:scale-95 transition-transform duration-200 select-none"
+                    >
+                        <Frown size={32} />
+                    </div>
+                    
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        这就放弃了？
+                    </h3>
+                    
+                    <p className="text-gray-500 mb-6">
+                        万一再猜一个字就想到了呢？百科全书在看着你！
+                    </p>
+                    
+                    <div className="flex gap-3">
+                         <button 
+                            onClick={handleGiveUpCancel}
+                            className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+                        >
+                            我不看了
+                        </button>
+                        <button 
+                            onClick={handleGiveUpConfirm}
+                            className="flex-1 py-3 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 border border-red-100 transition-colors"
+                        >
+                            手滑了
+                        </button>
+                    </div>
+                </div>
+             </div>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {showSettings && (

@@ -1,20 +1,19 @@
 
-
 import { Article } from "../types";
 
 // Helpers to get configuration dynamically
 const getBaseUrl = () => {
-  return localStorage.getItem("wikiguess_custom_base_url") || "https://api.siliconflow.cn/v1";
+  return localStorage.getItem("wikiguess_custom_base_url") || (import.meta as any).env?.VITE_API_BASE_URL || "https://api.siliconflow.cn/v1";
 };
 
 const getApiKey = () => {
-  const key = localStorage.getItem("wikiguess_custom_api_key");
+  const key = localStorage.getItem("wikiguess_custom_api_key") || (import.meta as any).env?.VITE_API_KEY;
   // Default to empty to prevent leakage. User must set this in Settings.
   return key || "";
 };
 
 const getModelName = () => {
-  return localStorage.getItem("wikiguess_custom_model_name") || "deepseek-ai/DeepSeek-V3";
+  return localStorage.getItem("wikiguess_custom_model_name") || (import.meta as any).env?.VITE_API_MODEL_NAME || "deepseek-ai/DeepSeek-V3";
 };
 
 export const generateAiPuzzle = async (): Promise<Article> => {
@@ -111,16 +110,22 @@ export const generateAiPuzzle = async (): Promise<Article> => {
 };
 
 export const fetchDailyPuzzle = async (dateStr?: string): Promise<Article> => {
-   if (!dateStr) {
+   // Validate and format dateStr to YYYYMMDD if needed
+   let targetDate = dateStr;
+
+   if (!targetDate) {
        const date = new Date();
        const yyyy = date.getFullYear();
        const mm = String(date.getMonth() + 1).padStart(2, '0');
        const dd = String(date.getDate()).padStart(2, '0');
-       dateStr = `${yyyy}${mm}${dd}`;
+       targetDate = `${yyyy}${mm}${dd}`;
    }
 
+   // Ensure format is numeric only (handle YYYY-MM-DD from input)
+   targetDate = targetDate.replace(/-/g, '');
+
    try {
-       const res = await fetch(`https://xiaoce.fun/api/v0/quiz/daily/baike/get?date=${dateStr}`);
+       const res = await fetch(`https://xiaoce.fun/api/v0/quiz/daily/baike/get?date=${targetDate}`);
        
        if (!res.ok) {
            throw new Error(`Daily Puzzle API Error: ${res.status}`);
